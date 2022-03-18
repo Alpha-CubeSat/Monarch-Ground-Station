@@ -83,7 +83,7 @@ blocks:
     bus_structure: null
     coordinate: [680, 60.0]
     rotation: 0
-    state: enabled
+    state: disabled
 - name: blocks_file_sink_0
   id: blocks_file_sink
   parameters:
@@ -109,7 +109,7 @@ blocks:
     alias: ''
     append: 'False'
     comment: ''
-    file: /home/wpc/projects/gnuradio/SpriteRecording1.c64
+    file: /home/wpc/projects/Monarch-Ground-Station/SpriteRecording1.c64
     type: complex
     unbuffered: 'False'
     vlen: '1'
@@ -141,7 +141,7 @@ blocks:
     bus_structure: null
     coordinate: [1016, 20.0]
     rotation: 0
-    state: enabled
+    state: disabled
 - name: description
   id: note
   parameters:

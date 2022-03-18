@@ -51,7 +51,7 @@ blocks:
     alias: ''
     append: 'False'
     comment: ''
-    file: /home/wpc/projects/gnuradio/prng1.c64
+    file: /home/wpc/projects/Monarch-Ground-Station/prng1.c64
     type: complex
     unbuffered: 'False'
     vlen: '1'
@@ -69,7 +69,7 @@ blocks:
     alias: ''
     append: 'False'
     comment: ''
-    file: /home/wpc/projects/gnuradio/prng0.c64
+    file: /home/wpc/projects/Monarch-Ground-Station/prng0.c64
     type: complex
     unbuffered: 'False'
     vlen: '1'
@@ -87,7 +87,7 @@ blocks:
     alias: ''
     begin_tag: pmt.PMT_NIL
     comment: ''
-    file: /home/wpc/projects/gnuradio/prn1.raw
+    file: /home/wpc/projects/Monarch-Ground-Station/prn1.raw
     length: '0'
     maxoutbuf: '0'
     minoutbuf: '0'
@@ -109,7 +109,7 @@ blocks:
     alias: ''
     begin_tag: pmt.PMT_NIL
     comment: ''
-    file: /home/wpc/projects/gnuradio/prn0.raw
+    file: /home/wpc/projects/Monarch-Ground-Station/prn0.raw
     length: '0'
     maxoutbuf: '0'
     minoutbuf: '0'
