@@ -7,6 +7,7 @@ import h5py
 import time
 import sys
 from tqdm import tqdm
+from joblib import Parallel, delayed
 
 fs = 200e3 # sampling rate
 fc = 50e3 # chip rate
@@ -24,7 +25,7 @@ prns_fft[0,:] = np.fft.fft(prn0, N_FFT).conjugate()
 doppler_range = 100
 
 def do_correlations(x):
-    c_t = np.zeros(2);
+    c_t = np.zeros(2)
     x_f = np.fft.fft(x).astype('complex64')
     for k in range(-doppler_range,doppler_range):
         c_t[0] = max(c_t[0],(np.abs(np.fft.ifft(np.roll(x_f,k) * prns_fft[0]))).max())
@@ -36,13 +37,17 @@ def do_correlations(x):
 
 signal = np.memmap(sys.argv[1] , mode='r', dtype='complex64')
 
-y = np.empty(((signal.size-N_FFT)+1,2))
-dy = np.zeros((signal.size-N_FFT)+1)
-for i in tqdm(range(0,signal.size-N_FFT,step)):
-    y[i,:] = do_correlations(signal[i:i+N_FFT])
-    dy[i] = y[i,1]-y[i,0]
+#y = np.empty(((signal.size-N_FFT)+1,2))
+#dy = np.zeros((signal.size-N_FFT)+1)
+
+def process(i):
+    y = do_correlations(signal[i:i+N_FFT])
+    return y[1]-y[0]
+
+dy = Parallel(n_jobs=4)(delayed(process)(i) for i in tqdm(range(0,signal.size-N_FFT,step)))
+
 plt.title('Corrrelation')
 plt.xlabel('Sample')
-plt.ylabel('Normalized correlation magnitude difference');
+plt.ylabel('Normalized correlation magnitude difference')
 plt.plot(dy)
 plt.show()
