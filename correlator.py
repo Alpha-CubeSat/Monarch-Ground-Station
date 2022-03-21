@@ -13,7 +13,6 @@ fs = 200e3 # sampling rate
 fc = 50e3 # chip rate
 step = 20
 N_FFT = int(512*fs/fc)
-print(N_FFT)
 
 prn0 = np.memmap('prng0.c64' , mode='r', dtype='complex64')[0:2049]
 prn1 = np.memmap('prng1.c64' , mode='r', dtype='complex64')[0:2049]
@@ -39,12 +38,30 @@ signal = np.memmap(sys.argv[1] , mode='r', dtype='complex64')
 
 #y = np.empty(((signal.size-N_FFT)+1,2))
 #dy = np.zeros((signal.size-N_FFT)+1)
+prn_int = int(N_FFT/step)
+print(prn_int)
 
+dmax = np.zeros(0,dtype='int')
+data = np.empty(0)
 def process(i):
     y = do_correlations(signal[i:i+N_FFT])
     return y[1]-y[0]
 
-dy = Parallel(n_jobs=4)(delayed(process)(i) for i in tqdm(range(0,signal.size-N_FFT,step)))
+dy = Parallel(n_jobs=6)(delayed(process)(i) for i in tqdm(range(0,signal.size-N_FFT,step)))
+for i in range(0,int(signal.size/N_FFT)):
+    if((i+1)*N_FFT < signal.size):
+        dmax = np.append(dmax,i*prn_int + np.abs(dy[i*prn_int:(i+1)*prn_int]).argmax())
+    else:
+        dmax = np.append(dmax,i*prn_int + np.abs(dy[i*prn_int:signal.size]).argmax())
+lastArg = - prn_int
+for arg in dmax:
+    if(arg > lastArg + prn_int):
+        if(dy[arg] > 0):
+            data = np.append(data,1)
+        else:
+            data = np.append(data,0)
+        lastArg=arg
+print(data)
 
 plt.title('Corrrelation')
 plt.xlabel('Sample')
