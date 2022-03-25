@@ -57,20 +57,20 @@ dy = np.array(Parallel(n_jobs=6)(delayed(process)(i) for i in tqdm(range(0,signa
 def get_pos_index(x):
     #turn negative value in x to 0
     x = np.array( [ num if num > 0 else 0 for num in x ] )
-    return np.where(x>500*x.mean())
+    return np.where(x>2000*x.mean())
 
 
 #get all preamble_candidates
 preamble_candidates = get_pos_index(dy[:,1])[0]
 preamble_final=np.zeros(0,dtype="int")
 
-preamble_wave_start = -N_FFT
-preamble_wave_end = -N_FFT
+preamble_wave_start = -N_PRN_LEN*N_BYTE_PER_PACKET*8
+preamble_wave_end = -N_PRN_LEN*N_BYTE_PER_PACKET*8
 
 #if a preamble is larger than N_FFT + preamble_wave_start, push the averageof preamble_wave_start and preamble_wave_end to the final list, and set average to this preamble
 #if a preamble is smaller than N_FFT + preamble_wave_start, it's new preamble_wave_end
 for i in preamble_candidates:
-    if i > N_FFT + preamble_wave_start:
+    if i > N_PRN_LEN*N_BYTE_PER_PACKET*8 + preamble_wave_start:
         if preamble_wave_start > 0:
             preamble_final = np.append(preamble_final,np.mean([preamble_wave_start,preamble_wave_end]))
         preamble_wave_start = i
@@ -78,7 +78,8 @@ for i in preamble_candidates:
     else:
         preamble_wave_end = i
 preamble_final = np.append(preamble_final,np.mean([preamble_wave_start,preamble_wave_end]))
-
+#print preamble locations
+print("Preamble locations:")
 print(preamble_final)
 data = np.zeros((len(preamble_final),N_BYTE_PER_PACKET*8))
 for i in range(preamble_final.size):
@@ -96,8 +97,25 @@ for i in range(preamble_final.size):
         plt.axvline(x = preamble_final[i]+N_PRN_LEN/2 + k*N_PRN_LEN,color = 'y')
     if(preamble_final[i] + N_PRN_LEN/2 + N_PRN_LEN*8 <= signal.size):
         plt.axvline(x = preamble_final[i]+N_PRN_LEN/2 + (N_BYTE_PER_PACKET*8)*N_PRN_LEN,color = 'y')
-
+        
+#Print bits data
+print("Bits data:")
 print(data)
+
+#Accumulate bits in  data to bytes
+def get_byte(data):
+    bytes = np.zeros(N_BYTE_PER_PACKET,dtype="int")
+    for i in range(N_BYTE_PER_PACKET):
+        for k in range(8):
+            bytes[i] = bytes[i] + data[i*8+k]*int(2**(k))
+    return bytes
+
+#print data to bytes in hex for each row
+print("Bytes data:")
+for i in range(data.shape[0]):
+    print(" ".join(["%02X" % x for x in get_byte(data[i])]))
+
+
 
 plt.title('Corrrelation')
 plt.xlabel('Sample')
