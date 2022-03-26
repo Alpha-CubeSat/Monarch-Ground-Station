@@ -1,9 +1,9 @@
 import numpy as np
 import matplotlib.pyplot as plt
-import scipy.signal
-import dask.array as da
-from dask.diagnostics import ProgressBar
-import h5py
+# import scipy.signal
+# import dask.array as da
+# from dask.diagnostics import ProgressBar
+# import h5py
 import time
 import sys
 from tqdm import tqdm
@@ -11,10 +11,10 @@ from joblib import Parallel, delayed
 
 fs = 200e3 # sampling rate
 fc = 50e3 # chip rate
-step = 20
+step = 100
 N_FFT = int(512*fs/fc)
 N_PRN_LEN = int(598*fs/fc)
-N_BYTE_PER_PACKET = int(3)
+N_BYTE_PER_PACKET = int(8)
 
 prn0 = np.memmap('prng0.c64' , mode='r', dtype='complex64')[0:2049]
 prn1 = np.memmap('prng1.c64' , mode='r', dtype='complex64')[0:2049]
@@ -64,26 +64,30 @@ def get_pos_index(x):
 preamble_candidates = get_pos_index(dy[:,1])[0]
 preamble_final=np.zeros(0,dtype="int")
 
-preamble_wave_start = -N_PRN_LEN*N_BYTE_PER_PACKET*8
-preamble_wave_end = -N_PRN_LEN*N_BYTE_PER_PACKET*8
+preamble_wave_start = -N_PRN_LEN*2
 
 #if a preamble is larger than N_FFT + preamble_wave_start, push the averageof preamble_wave_start and preamble_wave_end to the final list, and set average to this preamble
 #if a preamble is smaller than N_FFT + preamble_wave_start, it's new preamble_wave_end
+index_sum = 0
+index_count = 0
 for i in preamble_candidates:
-    if i > N_PRN_LEN*N_BYTE_PER_PACKET*8 + preamble_wave_start:
+    if i > 2*N_PRN_LEN + preamble_wave_start:
         if preamble_wave_start > 0:
-            preamble_final = np.append(preamble_final,np.mean([preamble_wave_start,preamble_wave_end]))
+            preamble_final = np.append(preamble_final,int(index_sum/index_count))
         preamble_wave_start = i
-        preamble_wave_end = i
+        index_sum = i*signal[i]
+        index_count = signal[i]
     else:
-        preamble_wave_end = i
-preamble_final = np.append(preamble_final,np.mean([preamble_wave_start,preamble_wave_end]))
+        index_sum+=i*signal[i]
+        index_count+=signal[i]
+preamble_final = np.append(preamble_final,int(index_sum/index_count))
+
 #print preamble locations
 print("Preamble locations:")
 print(preamble_final)
 data = np.zeros((len(preamble_final),N_BYTE_PER_PACKET*8))
 for i in range(preamble_final.size):
-    plt.axvline(preamble_final[i],color='r')
+    plt.axvline(preamble_final[i],ymin=0,ymax=0.5,color='r')
     for k in range(int(N_BYTE_PER_PACKET*8)):
         window_start = int(preamble_final[i]+N_PRN_LEN/2+k*N_PRN_LEN)
         window_end = int(preamble_final[i]+N_PRN_LEN/2+(k+1)*N_PRN_LEN)
@@ -94,9 +98,9 @@ for i in range(preamble_final.size):
             data[i,int(k)] = 1
         else:
             data[i,int(k)] = 0
-        plt.axvline(x = preamble_final[i]+N_PRN_LEN/2 + k*N_PRN_LEN,color = 'y')
+        #plt.axvline(x = preamble_final[i]+N_PRN_LEN/2 + k*N_PRN_LEN,color = 'y')
     if(preamble_final[i] + N_PRN_LEN/2 + N_PRN_LEN*8 <= signal.size):
-        plt.axvline(x = preamble_final[i]+N_PRN_LEN/2 + (N_BYTE_PER_PACKET*8)*N_PRN_LEN,color = 'y')
+        plt.axvline(x = preamble_final[i]+N_PRN_LEN/2 + (N_BYTE_PER_PACKET*8)*N_PRN_LEN,ymin=0,ymax=0.5,color = 'y')
         
 #Print bits data
 print("Bits data:")
