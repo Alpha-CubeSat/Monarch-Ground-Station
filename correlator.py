@@ -1,3 +1,4 @@
+from os import pread
 import numpy as np
 import matplotlib.pyplot as plt
 # import scipy.signal
@@ -6,14 +7,16 @@ import matplotlib.pyplot as plt
 # import h5py
 import time
 import sys
+import scipy.signal
 from tqdm import tqdm
 from joblib import Parallel, delayed
 
 fs = 200e3 # sampling rate
 fc = 50e3 # chip rate
 step = 100
+smooth_range = 1
 N_FFT = int(512*fs/fc)
-N_PRN_LEN = int(598*fs/fc)
+N_PRN_LEN = 596*fs/fc
 N_BYTE_PER_PACKET = int(8)
 
 prn0 = np.memmap('prng0.c64' , mode='r', dtype='complex64')[0:2049]
@@ -46,62 +49,54 @@ signal = np.memmap(sys.argv[1] , mode='r', dtype='complex64')
 #dy = np.zeros((signal.size-N_FFT)+1)
 
 def process(i):
-    if i%step != 0:
-        return [0,0]
     y = do_correlations(signal[i:i+N_FFT])
+    if(y[2] - y[0] < 0):
+        return [y[1] -y[0],0]
     return [y[1]-y[0],y[2]-y[0]]
 
-dy = np.array(Parallel(n_jobs=6)(delayed(process)(i) for i in tqdm(range(0,signal.size-N_FFT))))
+dy = np.array(Parallel(n_jobs=6)(delayed(process)(i) for i in tqdm(range(0,signal.size-N_FFT,step))))
+#find all peaks in dy[1] as possible start of a packet
+peaks = scipy.signal.find_peaks(dy[:,1], distance=int(N_FFT/step),prominence=0.02)
+print(peaks)
+dy_spaced = np.zeros(len(signal))
+preamble_spaced = np.zeros(len(signal))
 
-#find the index of values in x that are 100 times greater than the positive average
-def get_pos_index(x):
-    #turn negative value in x to 0
-    x = np.array( [ num if num > 0 else 0 for num in x ] )
-    return np.where(x>2000*x.mean())
+preamble_candidate = peaks[0]
+for i in range(len(preamble_candidate)):
+    preamble_candidate[i]*=step
+for i in range(len(dy)):
+    dy_spaced[i*step] = dy[i,0]
+    preamble_spaced[i*step] = dy[i,1]
+data = np.zeros((len(preamble_candidate),N_BYTE_PER_PACKET*8))
 
-
-#get all preamble_candidates
-preamble_candidates = get_pos_index(dy[:,1])[0]
-preamble_final=np.zeros(0,dtype="int")
-
-preamble_wave_start = -N_PRN_LEN*2
-
-#if a preamble is larger than N_FFT + preamble_wave_start, push the averageof preamble_wave_start and preamble_wave_end to the final list, and set average to this preamble
-#if a preamble is smaller than N_FFT + preamble_wave_start, it's new preamble_wave_end
-index_sum = 0
-index_count = 0
-for i in preamble_candidates:
-    if i > 2*N_PRN_LEN + preamble_wave_start:
-        if preamble_wave_start > 0:
-            preamble_final = np.append(preamble_final,int(index_sum/index_count))
-        preamble_wave_start = i
-        index_sum = i*signal[i]
-        index_count = signal[i]
-    else:
-        index_sum+=i*signal[i]
-        index_count+=signal[i]
-preamble_final = np.append(preamble_final,int(index_sum/index_count))
-
-#print preamble locations
-print("Preamble locations:")
-print(preamble_final)
-data = np.zeros((len(preamble_final),N_BYTE_PER_PACKET*8))
-for i in range(preamble_final.size):
-    plt.axvline(preamble_final[i],ymin=0,ymax=0.5,color='r')
+for i in range(preamble_candidate.size):
+    #if i + packet length reaches end of signal, ignore it
+    if(preamble_candidate[i] + N_BYTE_PER_PACKET*8*N_PRN_LEN > len(signal)):
+        continue
+    plt.axvline(preamble_candidate[i],ymin=0.8,ymax=1.0,color='r')
+    offset = 0
+    for j in range(step,int(N_PRN_LEN),step):
+        preamble_corr_sum=0
+        dy_corr_sum=0
+        for v in range(preamble_candidate[i]+j-smooth_range*step,preamble_candidate[i]+j+smooth_range*step,step):
+            preamble_corr_sum += np.abs(preamble_spaced[v])
+            dy_corr_sum += np.abs(dy_spaced[v])
+        if preamble_corr_sum < dy_corr_sum:
+            offset = j
+            break
+    plt.axvline(x=preamble_candidate[i]+offset,ymin=0.8,ymax=1.0,color='g')
     for k in range(int(N_BYTE_PER_PACKET*8)):
-        window_start = int(preamble_final[i]+N_PRN_LEN/2+k*N_PRN_LEN)
-        window_end = int(preamble_final[i]+N_PRN_LEN/2+(k+1)*N_PRN_LEN)
+        window_start = int(preamble_candidate[i]+offset+k*N_PRN_LEN)
+        window_end = int(preamble_candidate[i]+offset+(k+1)*N_PRN_LEN)
         if(window_end > signal.size):
             break
-        sum = dy[window_start:window_end,0].sum()
+        sum = dy_spaced[window_start:window_end].sum()
         if sum > 0:
             data[i,int(k)] = 1
         else:
             data[i,int(k)] = 0
-        #plt.axvline(x = preamble_final[i]+N_PRN_LEN/2 + k*N_PRN_LEN,color = 'y')
-    if(preamble_final[i] + N_PRN_LEN/2 + N_PRN_LEN*8 <= signal.size):
-        plt.axvline(x = preamble_final[i]+N_PRN_LEN/2 + (N_BYTE_PER_PACKET*8)*N_PRN_LEN,ymin=0,ymax=0.5,color = 'y')
-        
+        #plt.axvline(x = preamble_candidate[i]+offset + int(k*N_PRN_LEN),ymin=0.3,ymax=0.7,color = 'y')
+
 #Print bits data
 print("Bits data:")
 print(data)
@@ -125,5 +120,6 @@ plt.title('Corrrelation')
 plt.xlabel('Sample')
 plt.ylabel('Normalized correlation magnitude difference')
     
-plt.plot(dy)
+plt.plot(dy_spaced)
+plt.plot(preamble_spaced)
 plt.show()
