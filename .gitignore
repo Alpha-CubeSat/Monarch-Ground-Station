@@ -1,3 +1,5 @@
 *.c64
 GMSKGEN.py
 top_block.py
+env
+*.wav
