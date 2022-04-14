@@ -18,6 +18,7 @@ smooth_range = 1
 N_FFT = int(512*fs/fc)
 N_PRN_LEN = 596*fs/fc
 N_BYTE_PER_PACKET = int(8)
+N_BIT_PER_BYTE = 14
 
 prn0 = np.memmap('prng0.c64' , mode='r', dtype='complex64')[0:2049]
 prn1 = np.memmap('prng1.c64' , mode='r', dtype='complex64')[0:2049]
@@ -67,11 +68,11 @@ for i in range(len(preamble_candidate)):
 for i in range(len(dy)):
     dy_spaced[i*step] = dy[i,0]
     preamble_spaced[i*step] = dy[i,1]
-data = np.zeros((len(preamble_candidate),N_BYTE_PER_PACKET*8))
+data = np.zeros((len(preamble_candidate),N_BYTE_PER_PACKET*N_BIT_PER_BYTE))
 
 for i in range(preamble_candidate.size):
     #if i + packet length reaches end of signal, ignore it
-    if(preamble_candidate[i] + N_BYTE_PER_PACKET*8*N_PRN_LEN > len(signal)):
+    if(preamble_candidate[i] + N_BYTE_PER_PACKET*N_BIT_PER_BYTE*N_PRN_LEN > len(signal)):
         continue
     plt.axvline(preamble_candidate[i],ymin=0.8,ymax=1.0,color='r')
     offset = 0
@@ -85,7 +86,7 @@ for i in range(preamble_candidate.size):
             offset = j
             break
     plt.axvline(x=preamble_candidate[i]+offset,ymin=0.8,ymax=1.0,color='g')
-    for k in range(int(N_BYTE_PER_PACKET*8)):
+    for k in range(int(N_BYTE_PER_PACKET*N_BIT_PER_BYTE)):
         window_start = int(preamble_candidate[i]+offset+k*N_PRN_LEN)
         window_end = int(preamble_candidate[i]+offset+(k+1)*N_PRN_LEN)
         if(window_end > signal.size):
@@ -99,22 +100,8 @@ for i in range(preamble_candidate.size):
 
 #Print bits data
 print("Bits data:")
+np.set_printoptions(threshold=np.inf)
 print(data)
-
-#Accumulate bits in  data to bytes
-def get_byte(data):
-    bytes = np.zeros(N_BYTE_PER_PACKET,dtype="int")
-    for i in range(N_BYTE_PER_PACKET):
-        for k in range(8):
-            bytes[i] = bytes[i] + data[i*8+k]*int(2**(k))
-    return bytes
-
-#print data to bytes in hex for each row
-print("Bytes data:")
-for i in range(data.shape[0]):
-    print(" ".join(["%02X" % x for x in get_byte(data[i])]))
-
-
 
 plt.title('Corrrelation')
 plt.xlabel('Sample')
