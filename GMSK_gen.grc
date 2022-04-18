@@ -169,7 +169,7 @@ blocks:
   parameters:
     affinity: ''
     alias: ''
-    bt: '1'
+    bt: '0.25'
     comment: ''
     do_unpack: 'True'
     log: 'False'
@@ -190,7 +190,7 @@ blocks:
   parameters:
     affinity: ''
     alias: ''
-    bt: '1'
+    bt: '0.25'
     comment: ''
     do_unpack: 'True'
     log: 'False'
@@ -211,7 +211,7 @@ blocks:
   parameters:
     affinity: ''
     alias: ''
-    bt: '1'
+    bt: '0.25'
     comment: ''
     do_unpack: 'True'
     log: 'False'

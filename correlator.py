@@ -44,23 +44,32 @@ def do_correlations(x):
     result=result / np.abs(x_f.sum())
     return result
 
-signal = np.memmap(sys.argv[1] , mode='r', dtype='complex64')
-
-#y = np.empty(((signal.size-N_FFT)+1,2))
-#dy = np.zeros((signal.size-N_FFT)+1)
-
 def process(i):
     y = do_correlations(signal[i:i+N_FFT])
     if(y[2] - y[0] < 0):
         return [y[1] -y[0],0]
     return [y[1]-y[0],y[2]-y[0]]
 
-dy = np.array(Parallel(n_jobs=6)(delayed(process)(i) for i in tqdm(range(0,signal.size-N_FFT,step))))
+
+
+if(len(sys.argv) != 2):
+    print("Usage: ./correlator.py <file_name>")
+    exit()
+#check if the file name ends with .c64
+if(sys.argv[1][-4:] != '.c64'):
+    #read dy from npy file
+    dy = np.load(sys.argv[1])
+else:
+    signal = np.memmap(sys.argv[1] , mode='r', dtype='complex64')
+    dy = np.array(Parallel(n_jobs=6)(delayed(process)(i) for i in tqdm(range(0,signal.size-N_FFT,step))))
+    #save dy to file
+    np.save(sys.argv[1][:-4]+'.npy',dy)
+    
 #find all peaks in dy[1] as possible start of a packet
 peaks = scipy.signal.find_peaks(dy[:,1], distance=int(N_FFT/step),prominence=0.02)
 print(peaks)
-dy_spaced = np.zeros(len(signal))
-preamble_spaced = np.zeros(len(signal))
+dy_spaced = np.zeros(len(dy)*step)
+preamble_spaced = np.zeros(len(dy)*step)
 
 preamble_candidate = peaks[0]
 for i in range(len(preamble_candidate)):
@@ -72,8 +81,10 @@ data = np.zeros((len(preamble_candidate),N_BYTE_PER_PACKET*N_BIT_PER_BYTE))
 
 for i in range(preamble_candidate.size):
     #if i + packet length reaches end of signal, ignore it
-    if(preamble_candidate[i] + N_BYTE_PER_PACKET*N_BIT_PER_BYTE*N_PRN_LEN > len(signal)):
-        continue
+    if(preamble_candidate[i] + N_BYTE_PER_PACKET*N_BIT_PER_BYTE*N_PRN_LEN > len(dy_spaced)):
+        #resize data
+        data = data[0:i,:]
+        break
     plt.axvline(preamble_candidate[i],ymin=0.8,ymax=1.0,color='r')
     offset = 0
     for j in range(step,int(N_PRN_LEN),step):
@@ -89,7 +100,7 @@ for i in range(preamble_candidate.size):
     for k in range(int(N_BYTE_PER_PACKET*N_BIT_PER_BYTE)):
         window_start = int(preamble_candidate[i]+offset+k*N_PRN_LEN)
         window_end = int(preamble_candidate[i]+offset+(k+1)*N_PRN_LEN)
-        if(window_end > signal.size):
+        if(window_end > dy_spaced.size):
             break
         sum = dy_spaced[window_start:window_end].sum()
         if sum > 0:
