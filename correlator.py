@@ -18,7 +18,12 @@ dps = 245
 fs = 200e3 # sampling rate
 fc = 50e3 # chip rate
 step = 100
+
+doppler_range = 100
+doppler_center = 0
+
 smooth_range = 1
+
 N_FFT = int(512*fs/fc)
 N_PRN_LEN = 596*fs/fc
 N_BYTE_PER_PACKET = int(7)
@@ -33,9 +38,6 @@ prns_fft[1,:] = np.fft.fft(prn1, N_FFT).conjugate()
 prns_fft[0,:] = np.fft.fft(prn0, N_FFT).conjugate()
 
 preamble = np.fft.fft(preamble, N_FFT).conjugate()
-
-doppler_range = 100
-doppler_center = 0
 
 def do_correlations(x):
     c_t = np.zeros(3)
@@ -130,7 +132,9 @@ for i in range(data.shape[0]):
     #print out in hex format
     np.set_printoptions(formatter={'int':hex})
     if(out[0] == 0x1E):
-        plt.axvline(x=data_start[i],color='g')
+        plt.axvline(x=data_start[i],color='r')
+        for k in range(1,int(N_BYTE_PER_PACKET*N_BIT_PER_BYTE+1)):
+            plt.axvline(x=data_start[i]+k*N_PRN_LEN,color='y')
         print(out)
         parse_msg(out) 
 
